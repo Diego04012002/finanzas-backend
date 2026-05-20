@@ -9,7 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 // ---------- Supabase ----------
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY // service role key → bypasses RLS for server-side ops
+  process.env.SUPABASE_SERVICE_ROLE_KEY, // service role key → bypasses RLS for server-side ops
 );
 
 // ---------- App ----------
@@ -23,7 +23,10 @@ app.use(express.json());
 
 const originsEnv = (process.env.CORS_ORIGINS || "").trim();
 const origins = originsEnv
-  ? originsEnv.split(",").map((o) => o.trim()).filter(Boolean)
+  ? originsEnv
+      .split(",")
+      .map((o) => o.trim())
+      .filter(Boolean)
   : ["http://localhost:8000"];
 
 app.use(
@@ -32,7 +35,7 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 
 // ---------- Auth helpers ----------
@@ -49,11 +52,10 @@ function verifyPassword(pw, hashed) {
 }
 
 function createAccessToken(userId, email) {
-  return jwt.sign(
-    { sub: userId, email, type: "access" },
-    JWT_SECRET,
-    { algorithm: JWT_ALGORITHM, expiresIn: "7d" }
-  );
+  return jwt.sign({ sub: userId, email, type: "access" }, JWT_SECRET, {
+    algorithm: JWT_ALGORITHM,
+    expiresIn: "7d",
+  });
 }
 
 function setAuthCookie(res, token) {
@@ -75,7 +77,9 @@ async function getCurrentUser(req, res, next) {
   if (!token) return res.status(401).json({ detail: "Not authenticated" });
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET, { algorithms: [JWT_ALGORITHM] });
+    const payload = jwt.verify(token, JWT_SECRET, {
+      algorithms: [JWT_ALGORITHM],
+    });
     if (payload.type !== "access")
       return res.status(401).json({ detail: "Invalid token type" });
 
@@ -85,7 +89,8 @@ async function getCurrentUser(req, res, next) {
       .eq("id", payload.sub)
       .single();
 
-    if (error || !user) return res.status(401).json({ detail: "User not found" });
+    if (error || !user)
+      return res.status(401).json({ detail: "User not found" });
     req.user = user;
     next();
   } catch (err) {
@@ -109,7 +114,9 @@ api.post("/auth/register", async (req, res) => {
   if (!rawEmail || !validateEmail(rawEmail))
     return res.status(422).json({ detail: "Invalid email" });
   if (!password || password.length < 6 || password.length > 128)
-    return res.status(422).json({ detail: "Password must be 6–128 characters" });
+    return res
+      .status(422)
+      .json({ detail: "Password must be 6–128 characters" });
 
   const email = rawEmail.toLowerCase().trim();
 
@@ -119,7 +126,8 @@ api.post("/auth/register", async (req, res) => {
     .eq("email", email)
     .maybeSingle();
 
-  if (existing) return res.status(400).json({ detail: "Email already registered" });
+  if (existing)
+    return res.status(400).json({ detail: "Email already registered" });
 
   const displayName = name || email.split("@")[0];
   const { data: newUser, error } = await supabase
@@ -173,8 +181,15 @@ api.get("/data", getCurrentUser, async (req, res) => {
   const [files, budgets, goals, settings] = await Promise.all([
     supabase.from("files").select("name, rows, autoCount").eq("user_id", uid),
     supabase.from("budgets").select("categoria, limite").eq("user_id", uid),
-    supabase.from("goals").select("id, nombre, objetivo, ahorrado, fecha").eq("user_id", uid),
-    supabase.from("settings").select("lang, currency, activeFile").eq("user_id", uid).maybeSingle(),
+    supabase
+      .from("goals")
+      .select("id, nombre, objetivo, ahorrado, fecha")
+      .eq("user_id", uid),
+    supabase
+      .from("settings")
+      .select("lang, currency, activeFile")
+      .eq("user_id", uid)
+      .maybeSingle(),
   ]);
 
   res.json({
@@ -218,9 +233,14 @@ api.put("/budgets", getCurrentUser, async (req, res) => {
   await supabase.from("budgets").delete().eq("user_id", uid);
 
   if (payload.length) {
-    const docs = payload.map(({ categoria, limite }) => ({ user_id: uid, categoria, limite }));
+    const docs = payload.map(({ categoria, limite }) => ({
+      user_id: uid,
+      categoria,
+      limite,
+    }));
     const { error } = await supabase.from("budgets").insert(docs);
-    if (error) return res.status(500).json({ detail: "Failed to save budgets" });
+    if (error)
+      return res.status(500).json({ detail: "Failed to save budgets" });
   }
 
   res.json({ ok: true });
@@ -236,14 +256,13 @@ api.put("/goals", getCurrentUser, async (req, res) => {
   await supabase.from("goals").delete().eq("user_id", uid);
 
   if (payload.length) {
-    const docs = payload.map(({ id, nombre, objetivo, ahorrado = 0, fecha }) => ({
-      user_id: uid,
-      ...(id ? { id } : {}),
-      nombre,
-      objetivo,
-      ahorrado,
-      fecha,
-    }));
+    const docs = payload.map(
+      ({ id, nombre, objetivo, ahorrado = 0, fecha }) => {
+        const doc = { user_id: uid, nombre, objetivo, ahorrado, fecha };
+        if (id) doc.id = id; // solo incluir id si viene con valor
+        return doc;
+      },
+    );
     const { error } = await supabase.from("goals").insert(docs);
     if (error) return res.status(500).json({ detail: "Failed to save goals" });
   }
@@ -255,10 +274,12 @@ api.put("/settings", getCurrentUser, async (req, res) => {
   const uid = req.user.id;
   const { lang = "es", currency = "EUR", activeFile = null } = req.body;
 
-  const { error } = await supabase.from("settings").upsert(
-    { user_id: uid, lang, currency, activeFile },
-    { onConflict: "user_id" }
-  );
+  const { error } = await supabase
+    .from("settings")
+    .upsert(
+      { user_id: uid, lang, currency, activeFile },
+      { onConflict: "user_id" },
+    );
 
   if (error) return res.status(500).json({ detail: "Failed to save settings" });
   res.json({ ok: true });
