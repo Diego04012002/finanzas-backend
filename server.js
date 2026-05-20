@@ -256,15 +256,16 @@ api.put("/goals", getCurrentUser, async (req, res) => {
   await supabase.from("goals").delete().eq("user_id", uid);
 
   if (payload.length) {
-    const docs = payload.map(
-      ({ id, nombre, objetivo, ahorrado = 0, fecha }) => {
-        const doc = { user_id: uid, nombre, objetivo, ahorrado, fecha };
-        if (id) doc.id = id; // solo incluir id si viene con valor
-        return doc;
-      },
-    );
+    const docs = payload.map(({ nombre, objetivo, ahorrado = 0, fecha }) => ({
+      user_id: uid,
+      nombre,
+      objetivo,
+      ahorrado,
+      fecha,
+    }));
+
     const { error } = await supabase.from("goals").insert(docs);
-    if (error) return res.status(500).json({ detail: "Failed to save goals" });
+    if (error) return res.status(500).json({ detail: error });
   }
 
   res.json({ ok: true });
