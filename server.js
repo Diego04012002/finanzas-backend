@@ -140,7 +140,7 @@ api.post("/auth/register", async (req, res) => {
 
   const token = createAccessToken(newUser.id, email);
   setAuthCookie(res, token);
-  res.json({ id: newUser.id, email: newUser.email, name: newUser.name });
+  res.json({ id: newUser.id, email: newUser.email, name: newUser.name, token });
 });
 
 api.post("/auth/login", async (req, res) => {
@@ -161,7 +161,7 @@ api.post("/auth/login", async (req, res) => {
 
   const token = createAccessToken(user.id, email);
   setAuthCookie(res, token);
-  res.json({ id: user.id, email: user.email, name: user.name });
+  res.json({ id: user.id, email: user.email, name: user.name, token });
 });
 
 api.post("/auth/logout", (_req, res) => {
